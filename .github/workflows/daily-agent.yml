@@ -1,0 +1,32 @@
+name: Trello Daily Agent
+
+on:
+  schedule:
+    - cron: '30 2 * * *'    # 8:00 AM IST
+    - cron: '30 15 * * *'   # 9:00 PM IST
+  workflow_dispatch:          # manual trigger
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run agent
+        run: python main.py
+        env:
+          TRELLO_API_KEY: ${{ secrets.TRELLO_API_KEY }}
+          TRELLO_TOKEN: ${{ secrets.TRELLO_TOKEN }}
+          TRELLO_BOARD_ID: ${{ secrets.TRELLO_BOARD_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+          WHATSAPP_ACCESS_TOKEN: ${{ secrets.WHATSAPP_ACCESS_TOKEN }}
+          WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
+          WHATSAPP_NOTIFY_1: ${{ secrets.WHATSAPP_NOTIFY_1 }}
+          WHATSAPP_NOTIFY_2: ${{ secrets.WHATSAPP_NOTIFY_2 }}
+          WHATSAPP_NOTIFY_3: ${{ secrets.WHATSAPP_NOTIFY_3 }}
+          TIMEZONE: 'Asia/Kolkata'
