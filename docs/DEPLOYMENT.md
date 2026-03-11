@@ -41,7 +41,11 @@ Add these in **Settings > Secrets and variables > Actions > New repository secre
 | `OPENAI_MODEL` | No | Model to use (default: `gpt-4o-mini`) |
 | `WHATSAPP_ACCESS_TOKEN` | Yes | Meta WhatsApp Cloud API access token |
 | `WHATSAPP_PHONE_NUMBER_ID` | Yes | WhatsApp Business phone number ID |
-| `WHATSAPP_RECIPIENT_NUMBER` | Yes | Recipient phone number in international format without `+` |
+| `WHATSAPP_NOTIFY_1` | Yes | First recipient phone number in international format (e.g., `+919876543210`) |
+| `WHATSAPP_NOTIFY_2` | No | Second recipient phone number (optional) |
+| `WHATSAPP_NOTIFY_3` | No | Third recipient phone number (optional) |
+
+**Legacy**: `WHATSAPP_RECIPIENT_NUMBER` is still supported as a fallback if none of the `WHATSAPP_NOTIFY_*` vars are set, but new deployments should use the numbered vars.
 
 The `TIMEZONE` variable is hardcoded to `Asia/Kolkata` in the workflow file. To change it, edit `.github/workflows/daily-agent.yml`.
 
@@ -77,6 +81,7 @@ pip install -r requirements.txt
 cp .env.example .env
 
 # 3. Fill in all credentials in .env
+#    Use WHATSAPP_NOTIFY_1 (and optionally _2, _3) for recipient numbers
 
 # 4. Run with explicit mode
 python main.py --mode morning    # test morning briefing
@@ -103,11 +108,14 @@ Verify that:
 | `OPENAI_MODEL` | `gpt-4o-mini` | OpenAI model name |
 | `WHATSAPP_ACCESS_TOKEN` | -- | Meta WhatsApp Cloud API token |
 | `WHATSAPP_PHONE_NUMBER_ID` | -- | WhatsApp phone number ID |
-| `WHATSAPP_RECIPIENT_NUMBER` | -- | Recipient number (e.g., `919876543210`) |
+| `WHATSAPP_NOTIFY_1` | -- | First recipient number (e.g., `+919876543210`) |
+| `WHATSAPP_NOTIFY_2` | -- | Second recipient number (optional) |
+| `WHATSAPP_NOTIFY_3` | -- | Third recipient number (optional) |
+| `WHATSAPP_RECIPIENT_NUMBER` | -- | Legacy single recipient (fallback only) |
 | `TIMEZONE` | `Asia/Kolkata` | IANA timezone for morning/evening detection |
 
 ## Failure Behavior
 
-- If any step fails (config, Trello, OpenAI, WhatsApp), the agent sends a WhatsApp error notification (best-effort) and exits with code 1.
+- The agent retries the entire flow up to 3 times with 30-second delays between attempts.
+- If all 3 attempts fail, it sends a WhatsApp error notification (to all recipients, best-effort) and exits with code 1.
 - GitHub Actions will mark the workflow run as failed, visible in the Actions tab.
-- No automatic retries. Re-run manually from the Actions tab if needed.
