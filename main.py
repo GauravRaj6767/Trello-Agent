@@ -57,6 +57,11 @@ def determine_mode(timezone_str: str) -> str:
     return mode
 
 
+def _total_cards(board_data: dict) -> int:
+    """Return the total number of cards across all lists."""
+    return sum(len(lst["cards"]) for lst in board_data["lists"])
+
+
 def run_morning(config) -> None:
     """Execute the morning briefing flow."""
     logger.info("=== Morning Briefing ===")
@@ -64,6 +69,16 @@ def run_morning(config) -> None:
     # Step 1: Fetch board data
     logger.info("Fetching board data...")
     board_data = get_board_data(config, config.trello_board_id)
+
+    # Short-circuit if the board is empty
+    if _total_cards(board_data) == 0:
+        logger.info("Board '%s' has no cards — sending empty board notice", board_data["board_name"])
+        message = (
+            f"📋 Morning Briefing — {board_data['board_name']}\n\n"
+            "No open tasks on the board. Enjoy a clean slate! 🎉"
+        )
+        send_message(config, message)
+        return
 
     # Step 2: Generate AI briefing
     logger.info("Generating morning briefing with AI...")
@@ -92,6 +107,16 @@ def run_evening(config) -> None:
     since = get_since_today_utc(config.timezone)
     logger.info("Fetching today's activity (since %s)...", since)
     activity = get_board_activity(config, config.trello_board_id, since)
+
+    # Short-circuit if the board is empty and there was no activity today
+    if _total_cards(board_data) == 0 and len(activity) == 0:
+        logger.info("Board '%s' is empty with no activity today — sending notice", board_data["board_name"])
+        message = (
+            f"📊 Evening Summary — {board_data['board_name']}\n\n"
+            "No cards on the board and no activity today."
+        )
+        send_message(config, message)
+        return
 
     # Step 3: Generate AI summary
     logger.info("Generating evening summary with AI...")
