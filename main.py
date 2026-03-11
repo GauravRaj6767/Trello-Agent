@@ -10,6 +10,7 @@ and delivers it via WhatsApp.
 import argparse
 import logging
 import sys
+import time
 import traceback
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -29,6 +30,10 @@ logger = logging.getLogger(__name__)
 
 # Cutoff hour in local time: before this hour = morning, at or after = evening
 EVENING_CUTOFF_HOUR = 14  # 2:00 PM
+
+# Retry configuration
+MAX_ATTEMPTS = 3       # 1 initial + 2 retries
+RETRY_DELAY_SEC = 30   # wait between attempts
 
 
 def determine_mode(timezone_str: str) -> str:
@@ -103,6 +108,42 @@ def run_evening(config) -> None:
         raise RuntimeError("Failed to send evening summary via WhatsApp")
 
 
+def run_with_retry(config, mode: str) -> None:
+    """
+    Run the agent in the given mode, retrying up to MAX_ATTEMPTS times on failure.
+
+    Args:
+        config: Loaded configuration object.
+        mode: "morning" or "evening".
+    """
+    last_exception = None
+
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            logger.info("--- Attempt %d/%d ---", attempt, MAX_ATTEMPTS)
+            if mode == "morning":
+                run_morning(config)
+            else:
+                run_evening(config)
+            return  # success — exit retry loop
+
+        except Exception as e:
+            last_exception = e
+            tb = traceback.format_exc()
+            logger.error(
+                "Attempt %d/%d failed — %s: %s\nTraceback:\n%s",
+                attempt, MAX_ATTEMPTS,
+                type(e).__name__, str(e),
+                tb,
+            )
+            if attempt < MAX_ATTEMPTS:
+                logger.info("Retrying in %d seconds...", RETRY_DELAY_SEC)
+                time.sleep(RETRY_DELAY_SEC)
+
+    # All attempts exhausted
+    raise last_exception
+
+
 def main() -> None:
     """Main entry point with CLI argument parsing and error handling."""
     parser = argparse.ArgumentParser(
@@ -125,22 +166,24 @@ def main() -> None:
         # Determine run mode
         mode = args.mode if args.mode else determine_mode(config.timezone)
 
-        if mode == "morning":
-            run_morning(config)
-        else:
-            run_evening(config)
-
+        run_with_retry(config, mode)
         logger.info("Agent run completed successfully")
 
     except Exception as e:
         error_msg = f"{type(e).__name__}: {str(e)}"
         tb_summary = traceback.format_exc()
-        logger.error("Agent run failed:\n%s", tb_summary)
+        logger.error(
+            "All %d attempts failed. Final error — %s\nFull traceback:\n%s",
+            MAX_ATTEMPTS, error_msg, tb_summary,
+        )
 
         # Attempt to send error notification via WhatsApp
         if config is not None:
             logger.info("Sending error notification via WhatsApp...")
-            send_error_notification(config, error_msg)
+            send_error_notification(
+                config,
+                f"Failed after {MAX_ATTEMPTS} attempts.\n\nLast error: {error_msg}"
+            )
 
         sys.exit(1)
 
